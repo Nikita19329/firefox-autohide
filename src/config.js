@@ -1,39 +1,40 @@
-// Первая строка обязана быть комментарием.
+// The first line must be a comment.
 //
-// Автоскрытие панелей Firefox — в полноэкранном и в обычном оконном режиме.
+// firefox-autohide: auto-hide the Firefox address bar and sidebar, in
+// fullscreen and in a regular window.
 //
-// Адресная строка (сверху):
-//  • появляется, если подержать курсор у верхнего края, плавно выезжает
-//    и плавно уезжает, когда курсор уходит вниз на страницу;
-//  • сама появляется при Cmd+L, Cmd+T и т. п., пока в ней печатаешь;
-//  • хоткей закрепляет её (видна всегда) / открепляет.
+// Address bar (top):
+//  - appears when the pointer rests at the top edge, slides in smoothly and
+//    slides out when the pointer moves down to the page;
+//  - shows up by itself on Cmd+L, Cmd+T and the like while you type;
+//  - a hotkey pins it (always visible) / unpins it.
 //
-// Боковая панель (вкладки):
-//  • появляется, если подержать курсор у бокового края, плавно выезжает
-//    и так же плавно уезжает, когда курсор уходит на страницу;
-//  • свой хоткей закрепляет / открепляет её.
+// Sidebar (tabs):
+//  - appears when the pointer rests at the side edge, slides in smoothly and
+//    slides out the same way when the pointer moves to the page;
+//  - its own hotkey pins / unpins it.
 //
-// В полноэкранном режиме «край» — граница экрана, в окне — полоска
-// в несколько пикселей внутри окна у его границы. Закрепление запоминается
-// и у каждого режима своё.
+// In fullscreen the "edge" is the screen border; in a window it's a strip a
+// few pixels wide inside the window along its border. Pins are remembered,
+// separately for each mode.
 //
-// Настройки в about:config (создать, если нужно поменять):
-//   uc.autohide.windowed         логический автоскрытие в окне              (true)
-//   uc.autohide.reveal_delay     число  задержка у края, мс                (300)
-//   uc.autohide.window_edge      число  ширина «края» в окне, px            (6)
-//   uc.autohide.sidebar_anim_ms  число  выезд боковой панели, мс           (450)
-//   uc.autohide.sidebar_hide_ms  число  скрытие боковой панели, мс         (300)
-//   uc.autohide.key_modifiers    строка модификаторы хоткеев               (control)
-//   uc.autohide.urlbar_key       строка буква хоткея адресной строки       (L)
-//   uc.autohide.sidebar_key      строка буква хоткея боковой панели        (S)
-// В полноэкранном режиме автоскрытие включает галочка Firefox
-// «Скрыть панели инструментов». Хоткеи читаются при запуске Firefox,
-// остальное — сразу. Параметры *_pinned скрипт ведёт сам.
+// Prefs in about:config (create them to change the defaults):
+//   uc.autohide.windowed         bool    auto-hide in a window            (true)
+//   uc.autohide.reveal_delay     int     edge delay, ms                   (300)
+//   uc.autohide.window_edge      int     edge width in a window, px       (6)
+//   uc.autohide.sidebar_anim_ms  int     sidebar slide-in, ms             (450)
+//   uc.autohide.sidebar_hide_ms  int     sidebar slide-out, ms            (300)
+//   uc.autohide.key_modifiers    string  hotkey modifiers                 (control)
+//   uc.autohide.urlbar_key       string  address bar hotkey letter        (L)
+//   uc.autohide.sidebar_key      string  sidebar hotkey letter            (S)
+// In fullscreen, auto-hide follows Firefox's "Hide Toolbars" checkbox.
+// Hotkeys are read at startup, everything else applies right away.
+// The *_pinned prefs are managed by the script.
 
 try {
   const P = "uc.autohide.";
 
-  // Перенос настроек из прошлой версии (uc.fullscreen.*)
+  // Migrate prefs from the previous version (uc.fullscreen.*)
   try {
     const OLD = "uc.fullscreen.";
     const RENAME = { urlbar_pinned: "fullscreen.urlbar_pinned", sidebar_pinned: "fullscreen.sidebar_pinned" };
@@ -64,26 +65,27 @@ try {
   const str = (name, def) => Services.prefs.getStringPref(P + name, def);
   const bool = (name, def) => Services.prefs.getBoolPref(P + name, def);
 
-  const EASE_IN = "cubic-bezier(0.33, 1, 0.68, 1)"; // выезд: плавное замедление до упора
-  const EASE_OUT = "cubic-bezier(0.4, 0, 0.2, 1)"; // скрытие: мягко трогается и мягко уходит
-  const FS_EDGE = 2; // полноэкранный режим: край экрана, px
-  const ZONE = 12; // насколько курсор может «дрожать» у края во время задержки, px
-  const BAND = 40; // запас под адресной строкой, прежде чем она уедет, px
-  const SIDE_BAND = 8; // запас справа от боковой панели, px
+  const EASE_IN = "cubic-bezier(0.33, 1, 0.68, 1)"; // reveal: smooth deceleration to a stop
+  const EASE_OUT = "cubic-bezier(0.4, 0, 0.2, 1)"; // hide: eases in and eases out
+  const FS_EDGE = 2; // fullscreen: width of the screen edge, px
+  const ZONE = 12; // how far the pointer may wander from the edge during the delay, px
+  const BAND = 40; // slack below the address bar before it hides, px
+  const SIDE_BAND = 8; // slack past the sidebar before it hides, px
 
-  // Стили, которые прячут панели по пометкам скрипта. Подключаются к окну
-  // браузера на уровне userChrome.css, но сам userChrome.css не нужен.
+  // Styles that hide the panels based on attributes the script sets. They are
+  // added to the browser window at userChrome.css level, so no userChrome.css
+  // is needed.
   const CSS = `
   :root {
-    --uc-ah-show: 0.38s; /* выезд адресной строки */
-    --uc-ah-hide: 0.3s;  /* скрытие адресной строки */
-    --uc-ah-ease: cubic-bezier(0.33, 1, 0.68, 1);   /* выезд: плавное замедление */
-    --uc-ah-ease-out: cubic-bezier(0.4, 0, 0.2, 1); /* скрытие: мягко с обеих сторон */
+    --uc-ah-show: 0.38s; /* address bar slide-in */
+    --uc-ah-hide: 0.3s;  /* address bar slide-out */
+    --uc-ah-ease: cubic-bezier(0.33, 1, 0.68, 1);   /* reveal: smooth deceleration */
+    --uc-ah-ease-out: cubic-bezier(0.4, 0, 0.2, 1); /* hide: soft on both ends */
   }
 
-  /* ---------- Адресная строка ---------- */
+  /* ---------- Address bar ---------- */
 
-  /* Спрятана за верхним краем, пока скрипт её не покажет */
+  /* Parked above the top edge until the script shows it */
   :root[ucAutohide]:not([inDOMFullscreen]) #navigator-toolbox {
     margin-top: calc(-1 * var(--uc-toolbox-h, 0px)) !important;
     transition: margin-top var(--uc-ah-hide) var(--uc-ah-ease-out) !important;
@@ -94,16 +96,16 @@ try {
     transition: margin-top var(--uc-ah-show) var(--uc-ah-ease) !important;
   }
 
-  /* После выхода из видео во весь экран — без анимации (атрибут повторён,
-     чтобы правило было сильнее двух правил выше) */
+  /* No animation right after leaving video fullscreen (the attribute is
+     repeated so this rule outranks the two above) */
   :root[ucNoTransition][ucNoTransition][ucNoTransition][ucNoTransition] #navigator-toolbox {
     transition: none !important;
   }
 
-  /* ---------- Боковая панель ---------- */
+  /* ---------- Sidebar ---------- */
 
-  /* Спрятана (во время анимации скрытия правило не действует — ширину
-     плавно сводит к нулю скрипт) */
+  /* Hidden (suspended while the hide animation runs: the script shrinks
+     the width to zero itself) */
   :root[ucAutohide][ucSidebarHidden]:not([ucSidebarAnimating], [inDOMFullscreen]) #sidebar-container {
     content-visibility: hidden !important;
     flex-basis: 0 !important;
@@ -114,7 +116,7 @@ try {
     visibility: collapse !important;
   }
 
-  /* Полоска Firefox у верхнего края не нужна: край отслеживает скрипт */
+  /* Firefox's own top-edge strip isn't needed: the script watches the edge */
   :root[ucAutohide] #fullscr-toggler {
     display: none !important;
   }
@@ -172,12 +174,12 @@ try {
     const isTextInput = a =>
       !!a && (a.localName === "input" || a.localName === "textarea" || a.isContentEditable);
 
-    // Закрепление у каждого режима своё
+    // Pins are stored separately for windowed and fullscreen mode
     const pinPref = name => `${P}${win.fullScreen ? "fullscreen" : "window"}.${name}_pinned`;
     const getPin = name => Services.prefs.getBoolPref(pinPref(name), false);
     const setPin = (name, v) => Services.prefs.setBoolPref(pinPref(name), v);
 
-    // ================================================================ режим
+    // ================================================================= mode
 
     const domFS = () => !!doc.fullscreenElement || root.hasAttribute("inDOMFullscreen");
     const specialWindow = () =>
@@ -189,8 +191,8 @@ try {
     }
     let isActive = false;
 
-    // Задержка у края: onFire сработает, только если курсор продержался
-    // у края (с допуском ZONE) всё время задержки
+    // Edge delay: onFire runs only if the pointer stays at the edge (within
+    // ZONE) for the whole delay
     function edgeIntent(getEdgeRect, onFire) {
       let timer = null;
       const zone = {
@@ -218,9 +220,9 @@ try {
       return { start, cancel };
     }
 
-    // ======================================================= адресная строка
+    // ========================================================= address bar
 
-    // Высота панели нужна CSS, чтобы спрятать её ровно за верхний край
+    // CSS needs the toolbox height to park it exactly above the top edge
     let toolboxH = 0;
     const measureToolbox = () => {
       toolboxH = toolbox.getBoundingClientRect().height;
@@ -229,16 +231,16 @@ try {
     measureToolbox();
     new win.ResizeObserver(measureToolbox).observe(toolbox);
 
-    // Адресная строка видна, пока есть хоть одна причина
+    // The address bar is visible while at least one reason holds
     const u = {
-      pinned: false, // закреплена хоткеем
-      hover: false, // курсор пришёл к краю и ещё не ушёл вниз
-      focus: false, // в ней печатают (Cmd+L, Cmd+T, клик)
-      hold: false, // Firefox попросил показать (поиск, F6, запросы сайтов)
-      popups: new Set(), // открыто меню/панель из неё
+      pinned: false, // pinned with the hotkey
+      hover: false, // the pointer came to the edge and hasn't moved down yet
+      focus: false, // someone is typing in it (Cmd+L, Cmd+T, click)
+      hold: false, // Firefox asked to show it (search, F6, site prompts)
+      popups: new Set(), // a menu or panel opened from it is open
       visible: true,
-      hiddenAt: 0, // когда начала уезжать
-      shift: 0, // сдвиг под строку меню macOS
+      hiddenAt: 0, // when it started hiding
+      shift: 0, // offset below the macOS menu bar
     };
     let holdTimer = null;
     const toolboxBottom = () => toolboxH + u.shift;
@@ -260,7 +262,7 @@ try {
       FS.updateMacToolbarShift();
     }
 
-    // Курсор ушёл ниже строки (с запасом) — «наведение» закончилось
+    // The pointer moved below the bar (plus slack): the hover is over
     const below = {
       getMouseTargetRect: () => ({ top: toolboxBottom() + BAND, bottom: 1e6, left: -1e6, right: 1e6 }),
       onMouseEnter: () => setHover(false),
@@ -273,8 +275,8 @@ try {
       updateUrlbar();
     }
 
-    // Другая причина кончилась (фокус, меню), а курсор всё ещё над строкой —
-    // оставляем её, пока курсор не уйдёт вниз
+    // Another reason ended (focus, menu) but the pointer is still over the bar:
+    // keep it until the pointer moves down
     function keepIfPointerOver() {
       if (isActive && inToolboxRegion()) setHover(true);
     }
@@ -288,7 +290,7 @@ try {
       getMouseTargetRect: topEdgeRect,
       onMouseEnter() {
         if (this._suppressEnter || !isActive || u.visible) return;
-        // Ещё уезжает — значит, курсор только что ушёл и передумал: сразу назад
+        // Still hiding, so the pointer just left and came back: show it right away
         if (Date.now() - u.hiddenAt < 300) setHover(true);
         else topIntent.start();
       },
@@ -318,17 +320,17 @@ try {
       updateUrlbar();
     }
 
-    // ======================================================== боковая панель
+    // ============================================================= sidebar
 
     const s = {
       pinned: false,
       hover: false,
-      focus: false, // печатают в поле на панели (например, имя группы вкладок)
-      popups: new Set(), // открыто меню из панели (контекстное меню вкладки и т. п.)
+      focus: false, // typing in a field on the sidebar (e.g. a tab group name)
+      popups: new Set(), // a menu opened from the sidebar is open (tab context menu etc.)
       visible: true,
       anims: [],
-      gen: 0, // номер текущей анимации, чтобы старая не сбила новую
-      fullW: 0, // ширина полностью открытой панели
+      gen: 0, // current animation id, so a stale one can't interfere
+      fullW: 0, // width of the fully open sidebar
       mainW: 0,
     };
 
@@ -366,8 +368,8 @@ try {
       FS.updateMacToolbarShift();
     }
 
-    // Курсор ушёл с панели на страницу (полоса под видимой адресной строкой
-    // не считается — туда тянутся к адресной строке)
+    // The pointer left the sidebar for the page (the strip next to a visible
+    // address bar doesn't count: that's the way to the address bar)
     const sideAway = {
       getMouseTargetRect() {
         const w = sidebarW() + SIDE_BAND;
@@ -406,7 +408,7 @@ try {
       getMouseTargetRect: sideEdgeRect,
       onMouseEnter() {
         if (this._suppressEnter || !isActive || s.visible || !sidebarUsable()) return;
-        // Ещё уезжает — курсор передумал: разворачиваем сразу, без задержки
+        // Still hiding and the pointer came back: turn around right away, no delay
         if (root.hasAttribute("ucSidebarAnimating")) setSideHover(true);
         else sideIntent.start();
       },
@@ -436,10 +438,10 @@ try {
       updateSidebar();
     }
 
-    // ------------------------------------------------- анимация боковой панели
+    // ---------------------------------------------------- sidebar animation
 
-    // Та же пометка, что Firefox ставит на время своих анимаций панели:
-    // прячет кнопку «ещё» (»), которая иначе мелькает, пока панель обрезана
+    // The same flag Firefox sets during its own sidebar animations: it hides the
+    // overflow (») button that would otherwise flash while the sidebar is clipped
     function markAnimating(c, on) {
       if (!c) return;
       if (on) c.setAttribute("sidebar-ongoing-animations", "true");
@@ -457,8 +459,8 @@ try {
       root.removeAttribute("ucSidebarAnimating");
     }
 
-    // Одна анимация на оба направления: ширина контейнера from → to,
-    // содержимое выезжает целиком, как ящик, а не сжимается
+    // One animation for both directions: the container width goes from -> to,
+    // and the content slides as a whole, like a drawer, instead of squeezing
     function slide(c, from, to, duration, easing, fill) {
       const main = mainOf(c);
       const opts = { duration, easing, fill };
@@ -490,7 +492,7 @@ try {
 
     function showSidebar(animate) {
       const c = container();
-      // Ещё уезжала — разворачиваем с текущего места
+      // It was still hiding: reverse from where it is now
       const from = root.hasAttribute("ucSidebarAnimating") ? currentWidth() : 0;
       stopSidebarAnim();
       root.removeAttribute("ucSidebarHidden");
@@ -521,20 +523,20 @@ try {
       root.setAttribute("ucSidebarHidden", "true");
       const dur = int("sidebar_hide_ms", 300);
       if (!from || !s.fullW || dur <= 0 || reducedMotion()) return;
-      // Пока панель уезжает, CSS-правило скрытия не действует (ucSidebarAnimating)
+      // While it slides out, the CSS hide rule is suspended (ucSidebarAnimating)
       root.setAttribute("ucSidebarAnimating", "true");
       const my = s.gen;
       const done = () => {
         if (my !== s.gen) return;
-        root.removeAttribute("ucSidebarAnimating"); // сначала вернуть правило скрытия,
-        for (const a of s.anims) a.cancel(); // потом снять анимацию — в одном кадре
+        root.removeAttribute("ucSidebarAnimating"); // restore the hide rule first,
+        for (const a of s.anims) a.cancel(); // then drop the animation, in the same frame
         s.anims = [];
         markAnimating(c, false);
       };
       slide(c, from, 0, Math.max(120, dur * (from / s.fullW)), EASE_OUT, "forwards").finished.then(done, () => {});
     }
 
-    // ============================================== меню, открытые из панелей
+    // =============================================== menus opened from panels
 
     const countsAsPopup = t =>
       t.localName !== "tooltip" &&
@@ -550,7 +552,7 @@ try {
         if (!isActive) return;
         const t = e.originalTarget;
         if (!countsAsPopup(t)) return;
-        // Меню привязано к кнопке на панели — панель должна быть на месте
+        // The menu is anchored to a button on a panel, so keep that panel in place
         const anchor = t.anchorNode || t.triggerNode;
         if (anchor && toolbox.contains(anchor)) {
           u.popups.add(t);
@@ -559,7 +561,7 @@ try {
           s.popups.add(t);
           updateSidebar();
         }
-        win.setTimeout(recheck, 1000); // если показ меню отменили
+        win.setTimeout(recheck, 1000); // in case the menu never opened
       },
       true
     );
@@ -590,19 +592,19 @@ try {
       true
     );
 
-    // ===================================== встраивание в полноэкранный режим
+    // ==================================================== fullscreen hooks
 
-    // Скрывает и показывает панели скрипт, а не Firefox
+    // The script shows and hides the panels, not Firefox
     FS.hideNavToolbox = function () {};
 
-    // Полоска Firefox у верхнего края больше не нужна
+    // Firefox's top-edge strip is no longer needed
     for (const type of ["mouseover", "dragenter", "touchmove"]) {
       FS.fullScreenToggler.removeEventListener(type, real.expand);
     }
     FS._expandCallback = function () {};
 
-    // Firefox просит показать панель (фокус адресной строки, поиск, F6,
-    // запросы сайтов): ненадолго показываем адресную строку
+    // Firefox asks to show the toolbox (address bar focus, search, F6, site
+    // prompts): show the address bar for a moment
     function showWrapper(trackMouse = true) {
       if (!win.fullScreen) return real.show.call(FS, trackMouse);
       if (!isActive) return undefined;
@@ -618,9 +620,9 @@ try {
     }
     FS.showNavToolbox = showWrapper;
 
-    // macOS: строка меню сверху. Сама по себе панели не вытягивает (только
-    // тем же наведением с задержкой), а видимую адресную строку сдвигает
-    // вниз, чтобы меню её не закрывало
+    // macOS menu bar: it doesn't pull the panels in by itself (only through the
+    // same delayed hover), and it pushes a visible address bar down so the
+    // menu bar doesn't cover it
     FS.shiftMacToolbarDown = function (size) {
       this.showNavToolbox = () => {
         if (isActive && !u.visible) topIntent.start();
@@ -642,13 +644,13 @@ try {
       this._currentToolbarShift = tb;
     };
 
-    // Уведомления Firefox привязаны к адресной строке
+    // Firefox notifications anchor to the address bar
     Object.defineProperty(FS, "navToolboxHidden", {
       configurable: true,
       get: () => isActive && !u.visible,
     });
 
-    // ========================================================= смена режима
+    // ======================================================== mode changes
 
     function refresh({ reset = false, instant = false } = {}) {
       const now = computeActive();
@@ -678,8 +680,8 @@ try {
       }
       root.toggleAttribute("ucAutohide", now);
       if (now) {
-        // Курсор, который уже лежит у края, не считается: панель появится,
-        // когда к краю придут
+        // A pointer already resting at the edge doesn't count: the panel shows
+        // once the pointer arrives at the edge
         for (const l of [topEdge, sideEdge]) {
           l._suppressEnter = true;
           MPT.addListener(l);
@@ -689,7 +691,7 @@ try {
       syncFocus();
       syncSideFocus();
       updateUrlbar();
-      updateSidebar(false); // при смене режима — без выезда
+      updateSidebar(false); // no slide when switching modes
     }
 
     FS.toggle = function (...args) {
@@ -698,7 +700,7 @@ try {
       return result;
     };
 
-    // Видео во весь экран и обратно
+    // Video fullscreen and back
     const mo = new win.MutationObserver(() => refresh({ instant: true }));
     mo.observe(root, { attributes: true, attributeFilter: ["inDOMFullscreen"] });
 
@@ -715,11 +717,11 @@ try {
       mo.disconnect();
     });
 
-    // Окно открылось уже в полноэкранном режиме и Firefox успел спрятать
-    // панели сам — возвращаем их, дальше управляет скрипт
+    // The window opened in fullscreen and Firefox already collapsed the panels:
+    // bring them back, the script takes over from here
     if (FS._isChromeCollapsed) real.show.call(FS, false);
 
-    // ================================================================ хоткеи
+    // ============================================================== hotkeys
 
     const mods = str("key_modifiers", "control");
     const keyset = doc.createXULElement("keyset");

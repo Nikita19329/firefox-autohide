@@ -1,30 +1,28 @@
 # firefox-autohide
 
-[English](README.en.md)
+Smooth auto-hide for the Firefox address bar and the vertical tabs sidebar, in fullscreen and in a regular window.
 
-Плавное автоскрытие адресной строки и боковой панели с вертикальными вкладками в Firefox — и в полноэкранном, и в обычном оконном режиме.
+Firefox's built-in "Hide Toolbars" pops the toolbars in instantly at the slightest touch of the screen edge. This mod does it differently:
 
-Стандартное «Скрыть панели инструментов» в Firefox показывает панели рывком и от любого случайного касания края экрана. Этот мод делает иначе:
+- **Reveal delay.** A panel appears only when the pointer rests at the edge for 0.3 s. A pointer that just passes by doesn't open anything.
+- **Smooth animation.** Panels ease in and ease out. The sidebar slides in whole, like a drawer, instead of being squeezed.
+- **Separate panels.** The top edge reveals the address bar and the side edge reveals the tabs. Each one hides when the pointer leaves it for the page.
+- **Change of mind.** If the pointer comes back while a panel is still hiding, it turns around right away.
+- **Works in a window too.** There the "edge" is a 6px strip inside the window along its border.
+- **Stays out of the way.** The address bar shows up by itself on Cmd/Ctrl+L and Cmd/Ctrl+T while you type, and stays while a menu or a tab's context menu is open.
 
-- **Задержка у края.** Панель появляется, только если подержать курсор у края 0.3 с. Курсор, который просто пролетел мимо, ничего не открывает.
-- **Плавная анимация.** Панели выезжают с плавным замедлением и так же плавно уезжают. Боковая панель выезжает целиком, как ящик, а не сжимается.
-- **Панели раздельно.** Верхний край показывает адресную строку, боковой — вкладки. Каждая прячется, когда курсор уходит с неё на страницу.
-- **Передумал — вернулась.** Если вернуть курсор к краю, пока панель ещё уезжает, она сразу разворачивается обратно.
-- **Работает и в окне.** В окне «край» — полоска в 6px внутри окна у его границы.
-- **Не мешает работе.** Адресная строка появляется сама при Cmd/Ctrl+L и Cmd/Ctrl+T, пока в ней печатаешь, и не уезжает, пока открыто меню или контекстное меню вкладки.
+## Hotkeys
 
-## Хоткеи
-
-| Клавиши | Что делает |
+| Keys | What it does |
 |---|---|
-| Ctrl+L | закрепить / открепить адресную строку |
-| Ctrl+S | закрепить / открепить боковую панель |
+| Ctrl+L | pin / unpin the address bar |
+| Ctrl+S | pin / unpin the sidebar |
 
-Закреплённая панель видна всегда. Закрепление запоминается, у окна и полноэкранного режима оно своё.
+A pinned panel stays visible. Pins are remembered, separately for windowed and fullscreen mode.
 
-## Установка
+## Install
 
-### macOS и Linux
+### macOS and Linux
 
 ```sh
 git clone https://github.com/Nikita19329/firefox-autohide.git
@@ -32,59 +30,59 @@ cd firefox-autohide
 ./install.sh
 ```
 
-Потом полностью закрой Firefox (Cmd+Q) и открой снова.
+Then quit Firefox completely (Cmd+Q) and start it again.
 
-Установщик сам найдёт Firefox в `/Applications`, `~/Applications`, `/usr/lib/firefox` и других обычных местах. Если Firefox стоит в другом месте, передай путь: `./install.sh /путь/к/Firefox.app` (на Linux — папка, где лежит `omni.ja`).
+The installer looks for Firefox in `/Applications`, `~/Applications`, `/usr/lib/firefox` and other usual places. If yours is somewhere else, pass the path: `./install.sh /path/to/Firefox.app` (on Linux, the folder that contains `omni.ja`).
 
-На Linux Firefox из Snap и Flatpak не подойдёт: их папка доступна только для чтения. Нужен Firefox с mozilla.org или из пакета дистрибутива.
+On Linux, Snap and Flatpak builds won't work: their install folder is read-only. Use Firefox from mozilla.org or your distro's package.
 
 ### Windows
 
-Не проверялось, но должно работать. Скопируй файлы в папку Firefox (обычно `C:\Program Files\Mozilla Firefox`):
+Untested, but it should work. Copy the files into the Firefox folder (usually `C:\Program Files\Mozilla Firefox`):
 
 - `src\config.js` → `C:\Program Files\Mozilla Firefox\config.js`
 - `src\defaults\pref\autoconfig.js` → `C:\Program Files\Mozilla Firefox\defaults\pref\autoconfig.js`
 
-Перезапусти Firefox.
+Restart Firefox.
 
-## Удаление
+## Uninstall
 
 ```sh
 ./uninstall.sh
 ```
 
-На Windows удали те два файла вручную.
+On Windows, delete those two files by hand.
 
-## Настройки
+## Settings
 
-Меняются в `about:config`: создай параметр, если его там ещё нет.
+Change them in `about:config`, creating the pref if it isn't there yet.
 
-| Параметр | Тип | По умолчанию | Что делает |
+| Pref | Type | Default | What it does |
 |---|---|---|---|
-| `uc.autohide.windowed` | логический | `true` | автоскрытие в оконном режиме |
-| `uc.autohide.reveal_delay` | число | `300` | сколько миллисекунд держать курсор у края |
-| `uc.autohide.window_edge` | число | `6` | ширина «края» в окне, px |
-| `uc.autohide.sidebar_anim_ms` | число | `450` | длительность выезда боковой панели, мс |
-| `uc.autohide.sidebar_hide_ms` | число | `300` | длительность скрытия боковой панели, мс |
-| `uc.autohide.key_modifiers` | строка | `control` | модификаторы хоткеев, например `alt` или `accel,shift` |
-| `uc.autohide.urlbar_key` | строка | `L` | буква хоткея адресной строки |
-| `uc.autohide.sidebar_key` | строка | `S` | буква хоткея боковой панели |
+| `uc.autohide.windowed` | boolean | `true` | auto-hide in windowed mode |
+| `uc.autohide.reveal_delay` | number | `300` | how long the pointer rests at the edge, ms |
+| `uc.autohide.window_edge` | number | `6` | width of the "edge" in a window, px |
+| `uc.autohide.sidebar_anim_ms` | number | `450` | sidebar slide-in duration, ms |
+| `uc.autohide.sidebar_hide_ms` | number | `300` | sidebar slide-out duration, ms |
+| `uc.autohide.key_modifiers` | string | `control` | hotkey modifiers, e.g. `alt` or `accel,shift` |
+| `uc.autohide.urlbar_key` | string | `L` | address bar hotkey letter |
+| `uc.autohide.sidebar_key` | string | `S` | sidebar hotkey letter |
 
-В полноэкранном режиме автоскрытие включается стандартной галочкой Firefox «Скрыть панели инструментов» в контекстном меню. Хоткеи применяются после перезапуска Firefox, остальное — сразу.
+In fullscreen, auto-hide follows Firefox's own "Hide Toolbars" context menu checkbox. Hotkey changes apply after a restart, everything else applies right away.
 
-## Как это устроено и почему не расширение
+## How it works, and why it isn't an extension
 
-Расширения в Firefox не имеют доступа к интерфейсу самого браузера: спрятать или анимировать адресную строку и боковую панель они не могут.
+Firefox extensions can't touch the browser's own interface: they can't hide or animate the address bar or the sidebar.
 
-Поэтому мод использует autoconfig — штатный механизм Firefox для администраторов. При запуске Firefox выполняет `config.js` из своей папки, и скрипт берёт показ панелей на себя: следит за курсором у краёв, анимирует панели и подключает нужные стили. В профиль ничего не ставится, `userChrome.css` не нужен.
+So the mod uses autoconfig, Firefox's built-in mechanism for administrators. On startup Firefox runs `config.js` from its install folder, and the script takes over showing and hiding the panels: it watches the pointer near the edges, animates the panels, and adds the styles it needs. Nothing goes into your profile, and no `userChrome.css` is needed.
 
-## Важно знать
+## Good to know
 
-- **Полные права.** `config.js` выполняется с полными правами браузера. Перед установкой стоит посмотреть код, весь мод — это один файл [`src/config.js`](src/config.js).
-- **Обновления Firefox.** Мод опирается на внутренние части Firefox, и крупное обновление может его сломать. Кроме того, после обновления Firefox файлы иногда пропадают — тогда просто запусти `./install.sh` ещё раз.
-- **Где проверено.** macOS, Firefox 157, вертикальные вкладки. На Windows и Linux не проверялось.
-- **Другие моды через autoconfig.** Если у тебя уже есть свой `config.js` (например, [fx-autoconfig](https://github.com/MrOtherGuy/fx-autoconfig)), установщик сохранит его копию, а `uninstall.sh` вернёт. Одновременно они работать не будут.
+- **Full privileges.** `config.js` runs with full browser privileges. Read the code before installing: the whole mod is one file, [`src/config.js`](src/config.js).
+- **Firefox updates.** The mod relies on Firefox internals, so a major update can break it. Updates can also remove the files; if that happens, run `./install.sh` again.
+- **Where it's tested.** macOS, Firefox 157, vertical tabs. Not tested on Windows or Linux.
+- **Other autoconfig mods.** If you already have a `config.js` (for example, [fx-autoconfig](https://github.com/MrOtherGuy/fx-autoconfig)), the installer saves a copy and `uninstall.sh` restores it. The two can't run at the same time.
 
-## Лицензия
+## License
 
 [MIT](LICENSE)
